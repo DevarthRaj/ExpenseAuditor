@@ -14,8 +14,8 @@ from rag import retrieve_policy
 # Load .env BEFORE reading env vars — fixes module-level import ordering
 load_dotenv()
 
-# Configure tesseract path if needed (Windows)
-# pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+# Configure tesseract path (Windows)
+pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 
 MODEL = "llama-3.3-70b-versatile"
 _client = None
