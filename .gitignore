@@ -1,0 +1,26 @@
+# Virtual environment
+venv/
+
+# Environment variables (contains secrets)
+.env
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+*.pyo
+
+# ChromaDB vector store (regenerated on startup)
+chroma_db/
+
+# SQLite database (runtime data)
+*.db
+
+# Receipt uploads (runtime data)
+uploads/
+
+# Generated PDF (reproducible via script)
+expense_policy.pdf
+
+# OS files
+.DS_Store
+Thumbs.db
