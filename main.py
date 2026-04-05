@@ -28,7 +28,7 @@ Path("static").mkdir(exist_ok=True)
 
 # ── Initialize DB and load policy ─────────────────────────────────────────────
 database.init_db()
-rag.load_policy_pdf()  # no-op if PDF not found
+rag.load_policy_pdf(force_reload=True)  # always reload fresh chunks on startup
 
 # ── FastAPI app ────────────────────────────────────────────────────────────────
 app = FastAPI(
@@ -104,6 +104,15 @@ async def list_claims():
     """Return all claims sorted by risk score descending."""
     claims = database.get_all_claims()
     return {"claims": claims}
+
+
+@app.post("/reload-policy")
+async def reload_policy():
+    """Admin endpoint: re-ingest the policy PDF into ChromaDB."""
+    rag.load_policy_pdf(force_reload=True)
+    import rag as _rag
+    count = _rag._get_collection().count()
+    return {"success": True, "chunks_loaded": count}
 
 
 @app.get("/claims/{claim_id}")
