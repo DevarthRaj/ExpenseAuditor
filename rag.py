@@ -4,9 +4,13 @@ Uses sentence-transformers (all-MiniLM-L6-v2) for embedding.
 """
 
 import os
+import logging
 import fitz  # PyMuPDF
 import chromadb
 from chromadb.utils import embedding_functions
+
+# Suppress noisy ChromaDB telemetry errors
+logging.getLogger("chromadb").setLevel(logging.ERROR)
 
 CHROMA_PATH = "./chroma_db"
 COLLECTION_NAME = "expense_policy"
@@ -36,8 +40,7 @@ def _get_collection():
 def load_policy_pdf(pdf_path: str = POLICY_PDF, force_reload: bool = False):
     """
     Parse the policy PDF, chunk it, and upsert into ChromaDB.
-    Call this once (or whenever the policy changes).
-    If force_reload=True, clears the collection first to ensure fresh data.
+    Only reloads if force_reload=True — set that only when policy PDF changes.
     """
     if not os.path.exists(pdf_path):
         print(f"[RAG] Policy PDF not found at {pdf_path}. Skipping load.")
@@ -45,7 +48,11 @@ def load_policy_pdf(pdf_path: str = POLICY_PDF, force_reload: bool = False):
 
     collection = _get_collection()
 
-    # If force_reload, delete all existing documents from the collection
+    # Skip reload if data already exists and force_reload is False
+    if not force_reload and collection.count() > 0:
+        print(f"[RAG] Collection already has {collection.count()} chunks. Skipping reload.")
+        return
+
     if force_reload and collection.count() > 0:
         existing = collection.get()
         if existing["ids"]:
@@ -59,14 +66,13 @@ def load_policy_pdf(pdf_path: str = POLICY_PDF, force_reload: bool = False):
         if not text:
             continue
 
-        # Use smaller chunks (200 chars) with overlap to improve retrieval precision
-        step = 200
-        overlap = 60
+        step = 120
+        overlap = 40
         start = 0
         while start < len(text):
             end = start + step
             chunk = text[start:end].strip()
-            if len(chunk) > 20:  # skip tiny fragments
+            if len(chunk) > 20:
                 chunks.append({
                     "id": f"page{page_num}_s{start}",
                     "text": chunk,
@@ -94,6 +100,7 @@ def retrieve_policy(query: str, n_results: int = 5) -> list[str]:
     collection = _get_collection()
     count = collection.count()
     if count == 0:
+        print("[RAG] WARNING: Collection is empty. Was load_policy_pdf() called?")
         return []
 
     n_results = min(n_results, count)
@@ -102,4 +109,14 @@ def retrieve_policy(query: str, n_results: int = 5) -> list[str]:
         n_results=n_results,
     )
     docs = results.get("documents", [[]])[0]
+    distances = results.get("distances", [[]])[0]
+
+    # Debug: print retrieved chunks and similarity scores
+    print(f"\n[RAG DEBUG] Query: '{query}'")
+    print(f"[RAG DEBUG] Retrieved {len(docs)} chunks:")
+    for i, (doc, dist) in enumerate(zip(docs, distances)):
+        score = round(1 - dist, 3)
+        print(f"  [{i}] similarity={score} | {repr(doc)}")
+    print()
+
     return docs
