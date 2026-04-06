@@ -42,6 +42,15 @@
 </head>
 <body class="min-h-screen bg-gradient-to-br from-slate-900 via-slate-900 to-blue-950 text-white">
 
+  <!-- Auth guard -->
+  <script>
+    (function() {
+      const token = localStorage.getItem('ea_token');
+      const role  = localStorage.getItem('ea_role');
+      if (!token || role !== 'admin') { window.location.href = '/'; }
+    })();
+  </script>
+
   <!-- Background orbs -->
   <div class="fixed inset-0 overflow-hidden pointer-events-none">
     <div class="absolute top-0 right-0 w-96 h-96 bg-blue-600 rounded-full opacity-5 blur-3xl"></div>
@@ -72,14 +81,25 @@
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
           All Claims
         </a>
-        <a href="/" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 text-sm transition-colors">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-          New Claim
+        <a href="/portal" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 text-sm transition-colors">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+          Employee Portal
         </a>
+        <button onclick="logout()" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:text-red-400 hover:bg-red-500/10 text-sm transition-colors">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+          Logout
+        </button>
       </nav>
 
-      <!-- Stats summary -->
+      <!-- Admin badge + Stats summary -->
       <div class="p-4 border-t border-white/8">
+        <div class="flex items-center gap-2 mb-4">
+          <div class="w-7 h-7 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg flex items-center justify-center text-xs font-bold text-white" id="adminAvatar">A</div>
+          <div>
+            <p class="text-xs text-white font-medium" id="adminName">Admin</p>
+            <p class="text-xs text-purple-400">Administrator</p>
+          </div>
+        </div>
         <p class="text-xs text-slate-500 uppercase tracking-wider mb-3">Quick Stats</p>
         <div id="sidebarStats" class="space-y-2">
           <div class="flex justify-between text-xs">
@@ -194,6 +214,34 @@
   </div>
 
   <script>
+    // ── Auth & helpers ─────────────────────────────────────────────────────────
+    const ea_token = localStorage.getItem('ea_token');
+    const ea_username = localStorage.getItem('ea_username') || 'Admin';
+
+    function logout() {
+      ['ea_token','ea_role','ea_username','ea_user_id','ea_email'].forEach(k => localStorage.removeItem(k));
+      window.location.href = '/';
+    }
+
+    function authHeaders() {
+      return { 'Authorization': `Bearer ${ea_token}` };
+    }
+
+    // Set admin name in sidebar
+    document.getElementById('adminName').textContent = ea_username;
+    document.getElementById('adminAvatar').textContent = ea_username[0].toUpperCase();
+
+    function getReceiptUrl(claim) {
+      const thumb = claim.thumbnail_path;
+      const receipt = claim.receipt_path;
+      if (thumb) return '/uploads/' + thumb.split(/[/\\]/).pop();
+      if (receipt) {
+        const ext = receipt.split('.').pop().toLowerCase();
+        if (ext !== 'pdf') return '/uploads/' + receipt.split(/[/\\]/).pop();
+      }
+      return null;
+    }
+
     let allClaims = [];
     let currentFilter = 'ALL';
     let selectedClaimId = null;
@@ -211,7 +259,8 @@
 
     async function loadClaims() {
       try {
-        const res = await fetch('/claims');
+        const res = await fetch('/claims', { headers: authHeaders() });
+        if (res.status === 401 || res.status === 403) { logout(); return; }
         const data = await res.json();
         allClaims = data.claims || [];
         updateStats();
@@ -301,7 +350,8 @@
       panel.innerHTML = `<div class="h-full flex items-center justify-center"><div class="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div></div>`;
 
       try {
-        const res = await fetch(`/claims/${id}`);
+        const res = await fetch(`/claims/${id}`, { headers: authHeaders() });
+        if (res.status === 401 || res.status === 403) { logout(); return; }
         const claim = await res.json();
         renderDetail(claim);
       } catch (e) {
@@ -339,16 +389,27 @@
           <!-- Two-column: Receipt + Policy -->
           <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
-            <!-- Receipt image -->
+            <!-- Receipt image / thumbnail -->
             <div class="glass rounded-2xl p-4">
               <p class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-3">Receipt</p>
-              ${claim.receipt_path
-                ? `<img src="/uploads/${claim.receipt_path.split(/[\\/]/).pop()}"
-                        alt="Receipt"
-                        class="w-full max-h-48 object-contain rounded-xl bg-white/5 p-2 border border-white/10"
-                        onerror="this.parentElement.innerHTML='<div class=\\'flex h-32 items-center justify-center rounded-xl bg-white/5 border border-white/10\\'><p class=\\'text-xs text-slate-500\\'>Image unavailable</p></div>'" />`
-                : '<div class="flex h-32 items-center justify-center rounded-xl bg-white/5 border border-white/10"><p class="text-xs text-slate-500">No image</p></div>'
-              }
+              ${(() => {
+                const url = getReceiptUrl(claim);
+                const isPdf = claim.receipt_path && claim.receipt_path.split('.').pop().toLowerCase() === 'pdf';
+                if (url) {
+                  return `<div class="relative">
+                    <img src="${url}" alt="Receipt"
+                         class="w-full max-h-48 object-contain rounded-xl bg-white/5 p-2 border border-white/10" />
+                    ${isPdf ? `<span class="absolute top-2 right-2 bg-red-500/80 text-white text-xs px-1.5 py-0.5 rounded font-semibold">PDF</span>` : ''}
+                  </div>`;
+                }
+                if (isPdf) {
+                  return `<div class="flex flex-col h-32 items-center justify-center rounded-xl bg-red-500/10 border border-red-500/30">
+                    <svg class="w-10 h-10 text-red-400 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                    <p class="text-xs text-red-300 font-semibold">PDF Receipt</p>
+                  </div>`;
+                }
+                return `<div class="flex h-32 items-center justify-center rounded-xl bg-white/5 border border-white/10"><p class="text-xs text-slate-500">No image</p></div>`;
+              })()}
               <div class="mt-3 grid grid-cols-2 gap-2 text-xs">
                 <div class="bg-white/5 rounded-lg p-2"><p class="text-slate-400">Merchant</p><p class="text-white font-medium mt-0.5">${claim.merchant || '—'}</p></div>
                 <div class="bg-white/5 rounded-lg p-2"><p class="text-slate-400">Amount</p><p class="text-white font-medium mt-0.5">${claim.currency||'USD'} ${parseFloat(claim.amount||0).toFixed(2)}</p></div>
@@ -475,9 +536,10 @@
       try {
         const res = await fetch(`/claims/${claimId}/override`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...authHeaders() },
           body: JSON.stringify({ new_decision: selectedDecisionOverride, comment, override_by: overrideBy }),
         });
+        if (res.status === 401 || res.status === 403) { logout(); return; }
         if (!res.ok) throw new Error('Override failed');
         closeModal();
         await loadClaims();

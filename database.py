@@ -15,14 +15,30 @@ def get_connection():
 def init_db():
     conn = get_connection()
     cursor = conn.cursor()
+
+    # ── Users table ────────────────────────────────────────────────────────────
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            role TEXT NOT NULL DEFAULT 'client',
+            created_at TEXT DEFAULT (datetime('now'))
+        )
+    """)
+
+    # ── Claims table ───────────────────────────────────────────────────────────
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS claims (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER REFERENCES users(id),
             employee_name TEXT NOT NULL,
             employee_email TEXT NOT NULL,
             expense_date TEXT NOT NULL,
             justification TEXT NOT NULL,
             receipt_path TEXT,
+            thumbnail_path TEXT,
 
             -- OCR extracted fields
             merchant TEXT,
@@ -50,31 +66,98 @@ def init_db():
             created_at TEXT DEFAULT (datetime('now'))
         )
     """)
+
+    # ── Migrate existing claims table if columns are missing ───────────────────
+    existing_cols = {row[1] for row in cursor.execute("PRAGMA table_info(claims)")}
+    for col, definition in [
+        ("user_id", "INTEGER REFERENCES users(id)"),
+        ("thumbnail_path", "TEXT"),
+    ]:
+        if col not in existing_cols:
+            cursor.execute(f"ALTER TABLE claims ADD COLUMN {col} {definition}")
+
     conn.commit()
+
+    # ── Seed admin user ────────────────────────────────────────────────────────
+    from security import hash_password
+    existing = cursor.execute("SELECT id FROM users WHERE username = 'admin'").fetchone()
+    if not existing:
+        cursor.execute("""
+            INSERT INTO users (username, email, password_hash, role)
+            VALUES (?, ?, ?, ?)
+        """, ("admin", "admin@expenseauditor.internal", hash_password("admin123"), "admin"))
+        conn.commit()
+        print("[DB] ✅ Admin user seeded (admin / admin123)")
+
     conn.close()
 
+
+# ── User CRUD ──────────────────────────────────────────────────────────────────
+
+def create_user(username: str, email: str, password_hash: str, role: str = "client") -> int:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO users (username, email, password_hash, role)
+        VALUES (?, ?, ?, ?)
+    """, (username, email, password_hash, role))
+    user_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return user_id
+
+
+def get_user_by_username(username: str) -> Optional[dict]:
+    conn = get_connection()
+    cursor = conn.cursor()
+    row = cursor.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def get_user_by_email(email: str) -> Optional[dict]:
+    conn = get_connection()
+    cursor = conn.cursor()
+    row = cursor.execute("SELECT * FROM users WHERE email = ?", (email,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+def get_user_by_id(user_id: int) -> Optional[dict]:
+    conn = get_connection()
+    cursor = conn.cursor()
+    row = cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+    conn.close()
+    return dict(row) if row else None
+
+
+# ── Claims CRUD ────────────────────────────────────────────────────────────────
 
 def save_claim(data: dict) -> int:
     conn = get_connection()
     cursor = conn.cursor()
     cursor.execute("""
         INSERT INTO claims (
-            employee_name, employee_email, expense_date, justification, receipt_path,
+            user_id, employee_name, employee_email, expense_date, justification,
+            receipt_path, thumbnail_path,
             merchant, amount, currency, category, city, ocr_raw,
             decision, risk_score, primary_reason, policy_snippet_used,
             flags, employee_message, auditor_note
         ) VALUES (
-            :employee_name, :employee_email, :expense_date, :justification, :receipt_path,
+            :user_id, :employee_name, :employee_email, :expense_date, :justification,
+            :receipt_path, :thumbnail_path,
             :merchant, :amount, :currency, :category, :city, :ocr_raw,
             :decision, :risk_score, :primary_reason, :policy_snippet_used,
             :flags, :employee_message, :auditor_note
         )
     """, {
+        "user_id": data.get("user_id"),
         "employee_name": data.get("employee_name"),
         "employee_email": data.get("employee_email"),
         "expense_date": data.get("expense_date"),
         "justification": data.get("justification"),
         "receipt_path": data.get("receipt_path"),
+        "thumbnail_path": data.get("thumbnail_path"),
         "merchant": data.get("merchant"),
         "amount": data.get("amount"),
         "currency": data.get("currency", "USD"),
@@ -95,6 +178,15 @@ def save_claim(data: dict) -> int:
     return claim_id
 
 
+def _row_to_claim(row) -> dict:
+    d = dict(row)
+    try:
+        d["flags"] = json.loads(d["flags"]) if d["flags"] else []
+    except Exception:
+        d["flags"] = []
+    return d
+
+
 def get_all_claims():
     conn = get_connection()
     cursor = conn.cursor()
@@ -106,15 +198,20 @@ def get_all_claims():
     """)
     rows = cursor.fetchall()
     conn.close()
-    result = []
-    for row in rows:
-        d = dict(row)
-        try:
-            d["flags"] = json.loads(d["flags"]) if d["flags"] else []
-        except Exception:
-            d["flags"] = []
-        result.append(d)
-    return result
+    return [_row_to_claim(r) for r in rows]
+
+
+def get_claims_by_user(user_id: int):
+    """Return only claims belonging to this user, sorted by created_at desc."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT * FROM claims WHERE user_id = ?
+        ORDER BY created_at DESC
+    """, (user_id,))
+    rows = cursor.fetchall()
+    conn.close()
+    return [_row_to_claim(r) for r in rows]
 
 
 def get_claim_by_id(claim_id: int) -> Optional[dict]:
@@ -123,14 +220,7 @@ def get_claim_by_id(claim_id: int) -> Optional[dict]:
     cursor.execute("SELECT * FROM claims WHERE id = ?", (claim_id,))
     row = cursor.fetchone()
     conn.close()
-    if not row:
-        return None
-    d = dict(row)
-    try:
-        d["flags"] = json.loads(d["flags"]) if d["flags"] else []
-    except Exception:
-        d["flags"] = []
-    return d
+    return _row_to_claim(row) if row else None
 
 
 def override_claim(claim_id: int, new_decision: str, comment: str, override_by: str = "Manager"):

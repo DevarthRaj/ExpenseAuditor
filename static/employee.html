@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Submit Expense Claim | Acme Corp Expense Portal</title>
+  <title>Employee Portal | Expense Auditor</title>
   <meta name="description" content="Submit your corporate expense reimbursement claims for AI-powered policy compliance review." />
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
@@ -12,16 +12,9 @@
       theme: {
         extend: {
           fontFamily: { sans: ['Inter', 'sans-serif'] },
-          colors: {
-            brand: { 50:'#eff6ff', 100:'#dbeafe', 500:'#3b82f6', 600:'#2563eb', 700:'#1d4ed8', 800:'#1e40af', 900:'#1e3a8a' },
-            success: { 50:'#f0fdf4', 500:'#22c55e', 700:'#15803d' },
-            warning: { 50:'#fffbeb', 500:'#f59e0b', 700:'#b45309' },
-            danger: { 50:'#fef2f2', 500:'#ef4444', 700:'#b91c1c' },
-          },
           animation: {
             'fade-in-up': 'fadeInUp 0.5s ease-out',
             'pulse-glow': 'pulseGlow 2s ease-in-out infinite',
-            'spin-slow': 'spin 1.5s linear infinite',
             'bounce-in': 'bounceIn 0.6s cubic-bezier(0.36, 0.07, 0.19, 0.97)',
           },
           keyframes: {
@@ -38,7 +31,8 @@
     .glass { background: rgba(255,255,255,0.05); backdrop-filter: blur(16px); border: 1px solid rgba(255,255,255,0.1); }
     .file-drop-active { border-color: #3b82f6 !important; background: rgba(59,130,246,0.08) !important; }
     .progress-bar { transition: width 0.4s ease; }
-    input:focus, textarea:focus, select:focus { outline: none; ring: none; }
+    .claim-card { transition: transform 0.15s ease, box-shadow 0.15s ease; }
+    .claim-card:hover { transform: translateY(-1px); }
   </style>
 </head>
 <body class="min-h-screen bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900 text-white">
@@ -51,7 +45,7 @@
   </div>
 
   <!-- Header -->
-  <nav class="relative z-10 border-b border-white/10 glass">
+  <nav class="relative z-10 border-b border-white/10 glass sticky top-0">
     <div class="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
       <div class="flex items-center gap-3">
         <div class="w-9 h-9 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
@@ -61,15 +55,22 @@
         </div>
         <div>
           <h1 class="font-bold text-white text-sm leading-none">ExpenseAuditor</h1>
-          <p class="text-xs text-blue-300 mt-0.5">Acme Corp &bull; AI-Powered Compliance</p>
+          <p class="text-xs text-blue-300 mt-0.5">Employee Portal</p>
         </div>
       </div>
-      <a href="/dashboard" class="flex items-center gap-2 text-sm text-blue-300 hover:text-white transition-colors duration-200 group">
-        <span>Finance Dashboard</span>
-        <svg class="w-4 h-4 group-hover:translate-x-0.5 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
-        </svg>
-      </a>
+      <div class="flex items-center gap-4">
+        <div class="flex items-center gap-2">
+          <div class="w-7 h-7 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center text-xs font-bold text-white" id="userAvatar">?</div>
+          <span class="text-sm text-slate-300 hidden sm:block" id="navUsername">Loading...</span>
+        </div>
+        <button onclick="logout()"
+          class="flex items-center gap-1.5 text-sm text-slate-400 hover:text-red-400 transition-colors duration-200">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/>
+          </svg>
+          <span class="hidden sm:block">Logout</span>
+        </button>
+      </div>
     </div>
   </nav>
 
@@ -108,7 +109,7 @@
             <label for="email" class="block text-sm font-medium text-slate-300 mb-1.5">Work Email</label>
             <input
               type="email" id="email" name="email" required
-              placeholder="jane@acmecorp.com"
+              placeholder="jane@company.com"
               class="w-full bg-white/5 border border-white/15 rounded-xl px-4 py-3 text-white placeholder-slate-500
                      focus:border-blue-500 focus:bg-white/8 transition-all duration-200 text-sm"
             />
@@ -142,7 +143,9 @@
 
         <!-- Receipt upload -->
         <div>
-          <label class="block text-sm font-medium text-slate-300 mb-1.5">Receipt Image</label>
+          <label class="block text-sm font-medium text-slate-300 mb-1.5">Receipt
+            <span class="text-slate-500 font-normal">(image or PDF)</span>
+          </label>
           <div
             id="dropZone"
             class="relative border-2 border-dashed border-white/20 rounded-xl p-8 text-center cursor-pointer
@@ -161,12 +164,19 @@
               </div>
             </div>
             <p id="dropText" class="text-sm text-slate-400">
-              <span class="text-blue-400 font-medium">Click to upload</span> or drag & drop
+              <span class="text-blue-400 font-medium">Click to upload</span> or drag &amp; drop
             </p>
             <p class="text-xs text-slate-500 mt-1">PNG, JPG, JPEG, PDF supported</p>
             <!-- Preview -->
             <div id="previewContainer" class="hidden mt-4">
               <img id="imagePreview" class="max-h-40 mx-auto rounded-lg shadow-lg" />
+              <!-- PDF icon fallback -->
+              <div id="pdfPreview" class="hidden mx-auto w-24 h-32 bg-red-500/20 border border-red-500/30 rounded-xl flex flex-col items-center justify-center gap-2">
+                <svg class="w-10 h-10 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+                <span class="text-xs text-red-300 font-semibold">PDF</span>
+              </div>
               <p id="fileName" class="text-xs text-blue-300 mt-2"></p>
             </div>
           </div>
@@ -201,6 +211,25 @@
       <!-- Dynamically populated -->
     </div>
 
+    <!-- ── My Claims Section ──────────────────────────────────────────────── -->
+    <div class="mt-12">
+      <div class="flex items-center justify-between mb-5">
+        <h3 class="text-xl font-bold text-white">My Claim History</h3>
+        <button onclick="loadMyClaims()" class="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1 transition-colors">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          Refresh
+        </button>
+      </div>
+      <div id="myClaimsList" class="space-y-3">
+        <div class="text-center text-slate-500 text-sm py-8 glass rounded-2xl">
+          <svg class="w-10 h-10 mx-auto mb-3 opacity-30" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+          </svg>
+          <p>Your submitted claims will appear here.</p>
+        </div>
+      </div>
+    </div>
+
     <!-- Info footer -->
     <div class="mt-8 grid grid-cols-3 gap-4 text-center">
       <div class="glass rounded-xl p-4">
@@ -219,30 +248,66 @@
   </main>
 
   <script>
-    // Set default date to today
+    // ── Auth guard ─────────────────────────────────────────────────────────────
+    const token    = localStorage.getItem('ea_token');
+    const username = localStorage.getItem('ea_username');
+    const email    = localStorage.getItem('ea_email');
+    const role     = localStorage.getItem('ea_role');
+
+    if (!token) { window.location.href = '/'; }
+    if (role === 'admin') { window.location.href = '/dashboard'; }
+
+    // Pre-fill user info
+    if (username) {
+      document.getElementById('navUsername').textContent = username;
+      document.getElementById('userAvatar').textContent = username[0].toUpperCase();
+      document.getElementById('name').value = username;
+    }
+    if (email) {
+      document.getElementById('email').value = email;
+    }
+
+    function logout() {
+      ['ea_token','ea_role','ea_username','ea_user_id','ea_email'].forEach(k => localStorage.removeItem(k));
+      window.location.href = '/';
+    }
+
+    function authHeaders() {
+      return { 'Authorization': `Bearer ${token}` };
+    }
+
+    // ── Default date ───────────────────────────────────────────────────────────
     document.getElementById('date').value = new Date().toISOString().split('T')[0];
 
-    // File select handler
+    // ── File select handler ────────────────────────────────────────────────────
     function handleFileSelect(input) {
       const file = input.files[0];
       if (!file) return;
       document.getElementById('fileName').textContent = file.name;
       document.getElementById('previewContainer').classList.remove('hidden');
+
+      const imgEl  = document.getElementById('imagePreview');
+      const pdfEl  = document.getElementById('pdfPreview');
+
       if (file.type.startsWith('image/')) {
+        pdfEl.classList.add('hidden');
+        imgEl.classList.remove('hidden');
         const reader = new FileReader();
-        reader.onload = e => {
-          document.getElementById('imagePreview').src = e.target.result;
-        };
+        reader.onload = e => { imgEl.src = e.target.result; };
         reader.readAsDataURL(file);
+      } else if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+        imgEl.classList.add('hidden');
+        pdfEl.classList.remove('hidden');
       } else {
-        document.getElementById('imagePreview').src = '';
-        document.getElementById('imagePreview').alt = 'PDF uploaded';
+        pdfEl.classList.add('hidden');
+        imgEl.classList.remove('hidden');
+        imgEl.src = '';
       }
       document.getElementById('dropText').innerHTML =
         '<span class="text-green-400 font-medium">✓ File selected</span>';
     }
 
-    // Drag and drop
+    // ── Drag and drop ──────────────────────────────────────────────────────────
     const dropZone = document.getElementById('dropZone');
     dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('file-drop-active'); });
     dropZone.addEventListener('dragleave', () => dropZone.classList.remove('file-drop-active'));
@@ -259,11 +324,11 @@
       }
     });
 
-    // Form submit
+    // ── Form submit ────────────────────────────────────────────────────────────
     document.getElementById('claimForm').addEventListener('submit', async function(e) {
       e.preventDefault();
-      const btn = document.getElementById('submitBtn');
-      const btnText = document.getElementById('btnText');
+      const btn        = document.getElementById('submitBtn');
+      const btnText    = document.getElementById('btnText');
       const btnLoading = document.getElementById('btnLoading');
 
       btn.disabled = true;
@@ -276,9 +341,11 @@
       try {
         const response = await fetch('/submit-claim', {
           method: 'POST',
+          headers: authHeaders(),
           body: formData,
         });
 
+        if (response.status === 401) { logout(); return; }
         if (!response.ok) {
           const err = await response.json();
           throw new Error(err.detail || 'Submission failed');
@@ -286,6 +353,7 @@
 
         const data = await response.json();
         renderResult(data.claim, data.claim_id);
+        loadMyClaims();
       } catch (err) {
         renderError(err.message);
       } finally {
@@ -295,22 +363,112 @@
       }
     });
 
+    // ── My Claims ──────────────────────────────────────────────────────────────
+    async function loadMyClaims() {
+      const container = document.getElementById('myClaimsList');
+      try {
+        const res = await fetch('/my-claims', { headers: authHeaders() });
+        if (res.status === 401) { logout(); return; }
+        const data = await res.json();
+        const claims = data.claims || [];
+        if (claims.length === 0) {
+          container.innerHTML = `
+            <div class="text-center text-slate-500 text-sm py-8 glass rounded-2xl">
+              <p>No claims submitted yet. Submit your first claim above!</p>
+            </div>`;
+          return;
+        }
+        container.innerHTML = claims.map(c => renderClaimCard(c)).join('');
+      } catch (e) {
+        container.innerHTML = `<div class="text-red-400 text-sm text-center py-4">Failed to load claims: ${e.message}</div>`;
+      }
+    }
+
+    function renderClaimCard(c) {
+      const d = c.override_decision || c.decision || 'UNKNOWN';
+      const isOverridden = !!c.override_decision;
+      const colorMap = {
+        APPROVED: { bg: 'from-emerald-900/40 to-green-900/20', border: 'border-emerald-500/40', badge: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40', dot: 'bg-emerald-400', icon: '✅' },
+        FLAGGED:  { bg: 'from-amber-900/40 to-yellow-900/20',  border: 'border-amber-500/40',   badge: 'bg-amber-500/20 text-amber-300 border-amber-500/40',   dot: 'bg-amber-400',   icon: '⚠️' },
+        REJECTED: { bg: 'from-red-900/40 to-rose-900/20',      border: 'border-red-500/40',     badge: 'bg-red-500/20 text-red-300 border-red-500/40',         dot: 'bg-red-400',     icon: '❌' },
+      };
+      const cfg = colorMap[d] || colorMap['FLAGGED'];
+      const riskPct = Math.round((c.risk_score || 0) * 100);
+      const riskBarColor = riskPct >= 70 ? 'bg-red-500' : riskPct >= 35 ? 'bg-amber-500' : 'bg-emerald-500';
+      const receiptUrl = getReceiptUrl(c);
+
+      return `
+        <div class="claim-card bg-gradient-to-br ${cfg.bg} border ${cfg.border} rounded-2xl p-5 shadow-lg">
+          <div class="flex items-start justify-between mb-3">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 mb-0.5">
+                <span class="text-lg">${cfg.icon}</span>
+                <p class="font-semibold text-white">${c.merchant || 'Unknown Merchant'}</p>
+              </div>
+              <p class="text-xs text-slate-400">${c.expense_date || '—'} &bull; ${c.category || '—'} &bull; Claim #${c.id}</p>
+            </div>
+            <div class="flex flex-col items-end gap-1.5 ml-3">
+              <span class="text-xs font-bold border px-2 py-0.5 rounded-lg ${cfg.badge}">
+                ${isOverridden ? '✏ ' : ''}${d}
+              </span>
+              <span class="text-sm font-bold text-white">${c.currency || 'USD'} ${parseFloat(c.amount || 0).toFixed(2)}</span>
+            </div>
+          </div>
+
+          <!-- Receipt thumbnail -->
+          ${receiptUrl ? `
+          <div class="mb-3">
+            <img src="${receiptUrl}" alt="Receipt" class="h-20 w-auto rounded-lg border border-white/10 object-contain bg-white/5" 
+                 onerror="this.style.display='none'" />
+          </div>` : ''}
+
+          <!-- Risk bar -->
+          <div class="mb-3">
+            <div class="flex justify-between text-xs text-slate-500 mb-1">
+              <span>Risk Score</span><span class="font-medium">${riskPct}%</span>
+            </div>
+            <div class="h-1.5 bg-white/10 rounded-full overflow-hidden">
+              <div class="h-full ${riskBarColor} rounded-full" style="width:${riskPct}%"></div>
+            </div>
+          </div>
+
+          <!-- Employee message -->
+          <p class="text-xs text-slate-300 leading-relaxed">${c.employee_message || c.primary_reason || '—'}</p>
+
+          ${isOverridden ? `
+          <div class="mt-3 pt-3 border-t border-white/10">
+            <p class="text-xs text-purple-400">✏ Overridden by ${c.override_by}: <span class="text-slate-400">${c.override_comment || ''}</span></p>
+          </div>` : ''}
+        </div>
+      `;
+    }
+
+    function getReceiptUrl(claim) {
+      // Prefer thumbnail (for PDFs), else use receipt_path directly
+      const thumb = claim.thumbnail_path;
+      const receipt = claim.receipt_path;
+      if (thumb) return '/uploads/' + thumb.split(/[/\\]/).pop();
+      if (receipt) {
+        const ext = receipt.split('.').pop().toLowerCase();
+        if (ext !== 'pdf') return '/uploads/' + receipt.split(/[/\\]/).pop();
+      }
+      return null;
+    }
+
+    // ── Result card ────────────────────────────────────────────────────────────
     function renderResult(claim, claimId) {
       const d = claim.override_decision || claim.decision;
       const colorMap = {
         APPROVED: { bg: 'from-emerald-900/60 to-green-900/40', border: 'border-emerald-500/50', badge: 'bg-emerald-500', icon: '✅', text: 'text-emerald-300' },
-        FLAGGED:  { bg: 'from-amber-900/60 to-yellow-900/40', border: 'border-amber-500/50',   badge: 'bg-amber-500',   icon: '⚠️',  text: 'text-amber-300' },
-        REJECTED: { bg: 'from-red-900/60 to-rose-900/40',     border: 'border-red-500/50',     badge: 'bg-red-500',     icon: '❌',  text: 'text-red-300' },
+        FLAGGED:  { bg: 'from-amber-900/60 to-yellow-900/40',  border: 'border-amber-500/50',   badge: 'bg-amber-500',   icon: '⚠️',  text: 'text-amber-300' },
+        REJECTED: { bg: 'from-red-900/60 to-rose-900/40',      border: 'border-red-500/50',     badge: 'bg-red-500',     icon: '❌',  text: 'text-red-300' },
       };
       const c = colorMap[d] || colorMap['FLAGGED'];
-
       const riskPercent = Math.round((claim.risk_score || 0) * 100);
       const flags = Array.isArray(claim.flags) ? claim.flags : [];
-
       const flagsHTML = flags.length
         ? flags.map(f => `<span class="inline-block bg-white/10 text-slate-300 text-xs px-2 py-0.5 rounded-md">${f.replace(/_/g,' ')}</span>`).join(' ')
         : '';
-
       const riskColor = riskPercent >= 70 ? 'bg-red-500' : riskPercent >= 35 ? 'bg-amber-500' : 'bg-emerald-500';
 
       const card = document.getElementById('resultCard');
@@ -322,39 +480,24 @@
               <h3 class="text-xl font-bold text-white mt-1">Claim ${d}</h3>
               <p class="text-xs text-slate-400 mt-0.5">Claim #${claimId} &bull; AI Audit Complete</p>
             </div>
-            <span class="px-3 py-1.5 ${c.badge} text-white text-xs font-bold rounded-lg shadow-lg">
-              ${d}
-            </span>
+            <span class="px-3 py-1.5 ${c.badge} text-white text-xs font-bold rounded-lg shadow-lg">${d}</span>
           </div>
 
-          <!-- Receipt summary -->
           <div class="grid grid-cols-3 gap-3 mb-4">
-            <div class="bg-white/5 rounded-xl p-3">
-              <p class="text-xs text-slate-400">Merchant</p>
-              <p class="text-sm font-semibold text-white mt-0.5">${claim.merchant || '—'}</p>
-            </div>
-            <div class="bg-white/5 rounded-xl p-3">
-              <p class="text-xs text-slate-400">Amount</p>
-              <p class="text-sm font-semibold text-white mt-0.5">${claim.currency || 'USD'} ${parseFloat(claim.amount||0).toFixed(2)}</p>
-            </div>
-            <div class="bg-white/5 rounded-xl p-3">
-              <p class="text-xs text-slate-400">Category</p>
-              <p class="text-sm font-semibold text-white mt-0.5">${claim.category || '—'}</p>
-            </div>
+            <div class="bg-white/5 rounded-xl p-3"><p class="text-xs text-slate-400">Merchant</p><p class="text-sm font-semibold text-white mt-0.5">${claim.merchant || '—'}</p></div>
+            <div class="bg-white/5 rounded-xl p-3"><p class="text-xs text-slate-400">Amount</p><p class="text-sm font-semibold text-white mt-0.5">${claim.currency || 'USD'} ${parseFloat(claim.amount||0).toFixed(2)}</p></div>
+            <div class="bg-white/5 rounded-xl p-3"><p class="text-xs text-slate-400">Category</p><p class="text-sm font-semibold text-white mt-0.5">${claim.category || '—'}</p></div>
           </div>
 
-          <!-- Risk bar -->
           <div class="mb-4">
             <div class="flex justify-between text-xs text-slate-400 mb-1">
-              <span>Risk Score</span>
-              <span class="${c.text} font-semibold">${riskPercent}%</span>
+              <span>Risk Score</span><span class="${c.text} font-semibold">${riskPercent}%</span>
             </div>
             <div class="h-2 bg-white/10 rounded-full overflow-hidden">
               <div class="h-full ${riskColor} rounded-full progress-bar" style="width:${riskPercent}%"></div>
             </div>
           </div>
 
-          <!-- Employee message -->
           <div class="bg-white/5 border border-white/10 rounded-xl p-4 mb-4">
             <p class="text-xs font-medium text-slate-400 mb-1">AI Decision Reason</p>
             <p class="text-sm text-white leading-relaxed">${claim.employee_message || claim.primary_reason || '—'}</p>
@@ -366,12 +509,9 @@
           <div class="bg-blue-900/20 border border-blue-500/20 rounded-xl p-3 mb-4">
             <p class="text-xs font-medium text-blue-400 mb-1">📖 Policy Reference</p>
             <p class="text-xs text-slate-300 leading-relaxed italic">"${claim.policy_snippet_used}"</p>
-          </div>
-          ` : ''}
+          </div>` : ''}
 
-          <a href="/dashboard" class="block text-center text-xs text-slate-400 hover:text-blue-300 transition-colors mt-2">
-            View all claims in Finance Dashboard →
-          </a>
+          <p class="text-center text-xs text-slate-500 mt-2">An email notification has been sent to your work email.</p>
         </div>
       `;
       card.classList.remove('hidden');
@@ -392,6 +532,9 @@
       card.classList.remove('hidden');
       card.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
+
+    // ── Init ───────────────────────────────────────────────────────────────────
+    loadMyClaims();
   </script>
 </body>
 </html>
