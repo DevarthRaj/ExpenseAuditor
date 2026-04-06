@@ -131,6 +131,16 @@ def get_user_by_id(user_id: int) -> Optional[dict]:
     return dict(row) if row else None
 
 
+def get_all_users() -> list[dict]:
+    """Return all users, excluding password hashes."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, username, email, role, created_at FROM users ORDER BY created_at DESC")
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(r) for r in rows]
+
+
 # ── Claims CRUD ────────────────────────────────────────────────────────────────
 
 def save_claim(data: dict) -> int:

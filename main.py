@@ -92,8 +92,14 @@ async def root():
 
 @app.get("/portal")
 async def portal():
-    """Employee portal."""
+    """Employee portal (submission form)."""
     return FileResponse("static/employee.html")
+
+
+@app.get("/employees")
+async def employees_page():
+    """Admin employees management page."""
+    return FileResponse("static/employees.html")
 
 
 @app.get("/dashboard")
@@ -154,6 +160,20 @@ async def me(current_user: dict = Depends(get_current_user)):
         "email": current_user["email"],
         "role": current_user["role"],
     }
+
+
+@app.get("/users")
+async def list_users(admin: dict = Depends(require_admin)):
+    """Return all users. Admin only."""
+    users = database.get_all_users()
+    return {"users": users}
+
+
+@app.get("/admin/users/{user_id}/claims")
+async def list_user_claims(user_id: int, admin: dict = Depends(require_admin)):
+    """Admin endpoint: Return all claims for a specific user."""
+    claims = database.get_claims_by_user(user_id)
+    return {"claims": claims}
 
 
 # ── Claim submission (clients only, attach user_id) ───────────────────────────
